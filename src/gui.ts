@@ -41,9 +41,9 @@ export function createGUI(options: any, target: any) {
       if (value !== "default") {
         mat = target.materials[Number(value)];
       }
-      for (const logoGroup of target.groups) {
+      for (const logoGroup of target.logoGroups) {
         for (const logoMesh of logoGroup.meshes) {
-          logoMesh.material = mat;
+          logoMesh.mesh.material = mat;
         }
       }
     }
@@ -55,12 +55,34 @@ export function createGUI(options: any, target: any) {
   });
   gui.Register({
     type: "checkbox",
+    label: "Rotate",
+    folder: "Animation",
+    object: options,
+    property: "animRotate",
+    onChange: (value: number) => {
+      target.controls.autoRotate = value;
+    }
+  });
+  gui.Register({
+    type: "range",
+    label: "Rotation Speed",
+    folder: "Animation",
+    min: 0,
+    max: 10,
+    object: options,
+    property: "animRotateSpeed",
+    onChange: (value: number) => {
+      target.controls.autoRotateSpeed = value;
+    }
+  });
+  gui.Register({
+    type: "checkbox",
     label: "Play",
     folder: "Animation",
     object: options,
     property: "animPlay",
     onChange: (value: number) => {
-      for (const animation of target.animations) {
+      for (const animation of target.logoAnimations) {
         value ? animation.play() : animation.pause();
       }
     }
@@ -70,48 +92,22 @@ export function createGUI(options: any, target: any) {
     label: "Speed",
     folder: "Animation",
     min: 0.1,
-    max: 10,
+    max: 100,
     object: options,
     property: "animSpeed",
     onChange: (value: number) => {
-      target.animations.length = 0;
-      target.animationPromises.length = 0;
-
-      let elementDelay = 0;
-      for (const logoGroup of target.groups) {
-        let ringDelay = 0;
-        // for (const logoMesh of logoGroup.meshes) {
-        for (let i = logoGroup.meshes.length - 1; i >= 0; --i) {
-          const logoMesh = logoGroup.meshes[i];
-          logoMesh.rotation.set(0, 0, 0);
-
-          anime.remove(logoMesh);
-          const logoAnimation = anime({
-            autoplay: true,
-            targets: logoMesh.rotation,
-            x: 2.0 * Math.PI,
-            y: 2.0 * Math.PI,
-            z: 2.0 * Math.PI,
-            delay: elementDelay + ringDelay,
-            duration: options.animDuration / value - ringDelay - elementDelay
-          });
-          ringDelay += options.animRingDelay / value;
-
-          target.animations.push(logoAnimation);
-          target.animationPromises.push(logoAnimation.finished);
-        }
-        elementDelay += options.animElementDelay / value;
-      }
+      recomputeAnimations(options, target);
     }
   });
   gui.Register({
-    type: "checkbox",
-    label: "Rotate",
+    type: "select",
+    label: "Direction",
     folder: "Animation",
+    options: ["inside", "outside"],
     object: options,
-    property: "animRotate",
-    onChange: (value: number) => {
-      target.controls.autoRotate = value;
+    property: "animDirection",
+    onChange: (value: string) => {
+      recomputeAnimations(options, target);
     }
   });
   gui.Register({
@@ -142,5 +138,66 @@ export function createGUI(options: any, target: any) {
     onChange: (value: number) => {
       target.bloom.blendMode.opacity.value = value;
     }
+  });
+}
+
+function recomputeAnimations(options: any, target: any) {
+  target.logoAnimations.length = 0;
+  target.logoAnimationPromises.length = 0;
+
+  let elementDelay = 0;
+  for (const logoGroup of target.logoGroups) {
+    let ringDelay = 0;
+
+    const startIdx =
+      options.animDirection === "outside" ? 0 : logoGroup.meshes.length - 1;
+    const endIdx =
+      options.animDirection === "outside" ? logoGroup.meshes.length : -1;
+    const loopDir = options.animDirection === "outside" ? 1 : -1;
+    for (let i = startIdx; i !== endIdx; i += loopDir) {
+      const logoMesh = logoGroup.meshes[i];
+      logoMesh.rot.x = 0;
+      logoMesh.rot.y = 0;
+      logoMesh.rot.z = 0;
+
+      anime.remove(logoMesh.rot);
+      const logoAnimation = anime({
+        autoplay: options.animPlay,
+        targets: logoMesh.rot,
+        x: logoGroup.group.name === "Square" ? 2.0 * Math.PI : 0,
+        y:
+          logoGroup.group.name === "Triangle"
+            ? 2.0 * Math.PI
+            : logoGroup.group.name === "Circle"
+            ? -2.0 * Math.PI
+            : 0,
+        delay: elementDelay + ringDelay,
+        easing: "easeInOutQuad",
+        duration: options.animDuration / options.animSpeed,
+        update: () => {
+          if (logoGroup.group.name === "Square") {
+            logoMesh.mesh.setRotationFromAxisAngle(
+              target.squareRotationAxis,
+              logoMesh.rot.x
+            );
+          } else {
+            logoMesh.mesh.rotation.set(
+              logoMesh.rot.x,
+              logoMesh.rot.y,
+              logoMesh.rot.z
+            );
+          }
+        }
+      });
+      ringDelay += options.animRingDelay / options.animSpeed;
+
+      target.logoAnimations.push(logoAnimation);
+      target.logoAnimationPromises.push(logoAnimation.finished);
+    }
+    elementDelay += options.animElementDelay / options.animSpeed;
+  }
+
+  Promise.all(target.logoAnimationPromises).then(() => {
+    target.restartAnimations();
   });
 }

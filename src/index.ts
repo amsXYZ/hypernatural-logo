@@ -24,12 +24,14 @@ const Stats = require("stats.js");
 
 const options = {
   matIdx: "default",
+  animDirection: "outside",
   animRotate: true,
+  animRotateSpeed: 2,
   animPlay: true,
-  animSpeed: 1,
-  animDuration: 10000,
-  animElementDelay: 100,
-  animRingDelay: 200,
+  animSpeed: 5,
+  animDuration: 50000,
+  animElementDelay: 1000,
+  animRingDelay: 8000,
   bloomScale: 0.5,
   bloomIntensity: 1.0
 };
@@ -88,9 +90,14 @@ for (let i = 1; i <= 22; ++i) {
   }
 }
 
+interface ILogoMesh {
+  rot: { x: number; y: number; z: number };
+  mesh: Mesh;
+}
+
 interface ILogoGroup {
   group: Group;
-  meshes: Mesh[];
+  meshes: ILogoMesh[];
 }
 
 let currentGroup: Group;
@@ -103,6 +110,11 @@ const circleTranslation = new Vector3(-0.125, -0.17400002479553223, 0);
 const squareTranslation = new Vector3(
   0.1520000398159027,
   0.09999999403953552,
+  0
+);
+const squareRotationAxis = new Vector3(
+  0.9743700204157045,
+  0.22495124652933046,
   0
 );
 const triangleTranslation = new Vector3(
@@ -137,29 +149,55 @@ sceneLoader.load("hypernatural-extruded-mesh.glb", (gltf: GLTF) => {
     }
     if (gltfNode.isMesh) {
       gltfNode.material = materials[0];
-      logoGroups[logoGroups.length - 1].meshes.push(gltfNode);
+      logoGroups[logoGroups.length - 1].meshes.push({
+        rot: { x: 0, y: 0, z: 0 },
+        mesh: gltfNode
+      });
     }
   });
 
   let elementDelay = 0;
   for (const logoGroup of logoGroups) {
     let ringDelay = 0;
-    // for (const logoMesh of logoGroup.meshes) {
-    for (let i = logoGroup.meshes.length - 1; i >= 0; --i) {
+
+    const startIdx =
+      options.animDirection === "outside" ? 0 : logoGroup.meshes.length - 1;
+    const endIdx =
+      options.animDirection === "outside" ? logoGroup.meshes.length : -1;
+    const loopDir = options.animDirection === "outside" ? 1 : -1;
+    for (let i = startIdx; i !== endIdx; i += loopDir) {
       const logoMesh = logoGroup.meshes[i];
       const logoAnimation = anime({
         autoplay: options.animPlay,
-        targets: logoMesh.rotation,
-        x: 2.0 * Math.PI,
-        y: 2.0 * Math.PI,
-        z: 2.0 * Math.PI,
+        targets: logoMesh.rot,
+        x: logoGroup.group.name === "Square" ? 2.0 * Math.PI : 0,
+        y:
+          logoGroup.group.name === "Triangle"
+            ? 2.0 * Math.PI
+            : logoGroup.group.name === "Circle"
+            ? -2.0 * Math.PI
+            : 0,
         delay: elementDelay + ringDelay,
-        duration:
-          options.animDuration / options.animSpeed - ringDelay - elementDelay
+        easing: "easeInOutQuad",
+        duration: options.animDuration / options.animSpeed,
+        update: () => {
+          if (logoGroup.group.name === "Square") {
+            logoMesh.mesh.setRotationFromAxisAngle(
+              squareRotationAxis,
+              logoMesh.rot.x
+            );
+          } else {
+            logoMesh.mesh.rotation.set(
+              logoMesh.rot.x,
+              logoMesh.rot.y,
+              logoMesh.rot.z
+            );
+          }
+        }
       });
       ringDelay += options.animRingDelay / options.animSpeed;
 
-      logoGroup.group.add(logoMesh);
+      logoGroup.group.add(logoMesh.mesh);
       logoAnimations.push(logoAnimation);
       logoAnimationPromises.push(logoAnimation.finished);
     }
@@ -187,11 +225,12 @@ const restartAnimations = () => {
 createGUI(options, {
   materials,
   bloom: effectPass.effects[0],
-  groups: logoGroups,
+  logoGroups,
   controls,
-  animations: logoAnimations,
-  animationPromises: logoAnimationPromises,
-  restartAnimationsCallback: restartAnimations
+  logoAnimations,
+  logoAnimationPromises,
+  restartAnimations,
+  squareRotationAxis
 });
 
 window.addEventListener("resize", (event: UIEvent) => {
@@ -199,6 +238,7 @@ window.addEventListener("resize", (event: UIEvent) => {
   camera.updateProjectionMatrix();
 
   renderer.setSize(canvas.offsetWidth, canvas.offsetHeight, false);
+  renderer.setPixelRatio(window.devicePixelRatio);
 });
 
 function animate() {
