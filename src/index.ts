@@ -29,6 +29,7 @@ const options = {
   animRotateSpeed: 2,
   animPlay: true,
   animSpeed: 5,
+  animRotations: 10,
   animDuration: 50000,
   animElementDelay: 1000,
   animRingDelay: 8000,
@@ -170,16 +171,20 @@ sceneLoader.load("hypernatural-extruded-mesh.glb", (gltf: GLTF) => {
       const logoAnimation = anime({
         autoplay: options.animPlay,
         targets: logoMesh.rot,
-        x: logoGroup.group.name === "Square" ? 2.0 * Math.PI : 0,
+        x:
+          options.animRotations *
+          (logoGroup.group.name === "Square" ? -2.0 * Math.PI : 0),
         y:
-          logoGroup.group.name === "Triangle"
+          options.animRotations *
+          (logoGroup.group.name === "Triangle"
             ? 2.0 * Math.PI
             : logoGroup.group.name === "Circle"
             ? -2.0 * Math.PI
-            : 0,
+            : 0),
         delay: elementDelay + ringDelay,
         easing: "easeInOutQuad",
-        duration: options.animDuration / options.animSpeed,
+        duration:
+          (options.animRotations * options.animDuration) / options.animSpeed,
         update: () => {
           if (logoGroup.group.name === "Square") {
             logoMesh.mesh.setRotationFromAxisAngle(

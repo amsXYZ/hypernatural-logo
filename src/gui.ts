@@ -55,7 +55,7 @@ export function createGUI(options: any, target: any) {
   });
   gui.Register({
     type: "checkbox",
-    label: "Rotate",
+    label: "Camera Rotation",
     folder: "Animation",
     object: options,
     property: "animRotate",
@@ -65,7 +65,7 @@ export function createGUI(options: any, target: any) {
   });
   gui.Register({
     type: "range",
-    label: "Rotation Speed",
+    label: "Camera Rotation Speed",
     folder: "Animation",
     min: 0,
     max: 10,
@@ -77,7 +77,7 @@ export function createGUI(options: any, target: any) {
   });
   gui.Register({
     type: "checkbox",
-    label: "Play",
+    label: "Ring Rotation",
     folder: "Animation",
     object: options,
     property: "animPlay",
@@ -89,7 +89,7 @@ export function createGUI(options: any, target: any) {
   });
   gui.Register({
     type: "range",
-    label: "Speed",
+    label: "Ring Rotation Speed",
     folder: "Animation",
     min: 0.1,
     max: 100,
@@ -100,8 +100,20 @@ export function createGUI(options: any, target: any) {
     }
   });
   gui.Register({
+    type: "range",
+    label: "Full Rotation Count",
+    folder: "Animation",
+    min: 1,
+    max: 100,
+    object: options,
+    property: "animRotations",
+    onChange: (value: string) => {
+      recomputeAnimations(options, target);
+    }
+  });
+  gui.Register({
     type: "select",
-    label: "Direction",
+    label: "Ring Rotation Direction",
     folder: "Animation",
     options: ["inside", "outside"],
     object: options,
@@ -164,16 +176,20 @@ function recomputeAnimations(options: any, target: any) {
       const logoAnimation = anime({
         autoplay: options.animPlay,
         targets: logoMesh.rot,
-        x: logoGroup.group.name === "Square" ? 2.0 * Math.PI : 0,
+        x:
+          options.animRotations *
+          (logoGroup.group.name === "Square" ? -2.0 * Math.PI : 0),
         y:
-          logoGroup.group.name === "Triangle"
+          options.animRotations *
+          (logoGroup.group.name === "Triangle"
             ? 2.0 * Math.PI
             : logoGroup.group.name === "Circle"
             ? -2.0 * Math.PI
-            : 0,
+            : 0),
         delay: elementDelay + ringDelay,
         easing: "easeInOutQuad",
-        duration: options.animDuration / options.animSpeed,
+        duration:
+          (options.animRotations * options.animDuration) / options.animSpeed,
         update: () => {
           if (logoGroup.group.name === "Square") {
             logoMesh.mesh.setRotationFromAxisAngle(
